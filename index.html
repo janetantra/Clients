@@ -493,7 +493,7 @@ function renderCards() {
       <div class="card-accent accent-${c.color}"></div>
       <div class="card-body">
         <div class="card-name">${c.name || '<em style="color:#aaa;font-weight:400">Unknown</em>'}</div>
-        <div class="card-phone">${c.phone || '—'}</div>
+        <div class="card-phone">${c.phone ? `<a href="tel:${c.phone.replace(/\D/g,'')}" style="color:var(--green);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">📞 ${c.phone}</a>` : '—'}</div>
         ${tags.length ? `<div class="card-meta">${tags.join('')}</div>` : ''}
         ${c.notes ? `<div class="card-notes">${c.notes}</div>` : ''}
       </div>
