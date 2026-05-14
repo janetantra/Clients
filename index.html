@@ -347,9 +347,131 @@
   .cp-yellow { background: var(--yellow); }
   .cp-pink { background: var(--pink); }
   .cp-teal { background: var(--teal); }
+
+  /* LOGIN MODAL */
+  #loginScreen {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .login-box {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 48px 40px 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.15);
+    position: relative;
+    z-index: 1;
+    text-align: center;
+  }
+  .login-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 30px;
+    color: var(--green);
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+  .login-logo span { color: var(--pink); }
+  .login-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 36px;
+  }
+  .login-field { margin-bottom: 16px; text-align: left; }
+  .login-field label {
+    display: block;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .login-field input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    background: white;
+    color: var(--text);
+    transition: border-color 0.2s;
+  }
+  .login-field input:focus { outline: none; border-color: var(--green); }
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.15s;
+  }
+  .login-btn:hover { background: #1e4d1e; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(45,106,45,0.3); }
+  .login-error {
+    color: var(--pink);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    margin-top: 12px;
+    min-height: 18px;
+    font-weight: 500;
+  }
+  .login-lock { font-size: 48px; margin-bottom: 16px; }
+  .logout-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    background: none;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .logout-btn:hover { border-color: var(--pink); color: var(--pink); }
 </style>
 </head>
 <body>
+
+<!-- LOGIN MODAL (overlay, not full screen gate) -->
+<div id="loginScreen" style="display:none;" onclick="if(event.target===this)closeLoginModal()">
+  <div class="login-box">
+    <div class="login-lock">🔒</div>
+    <div class="login-logo">sticky<span>notes</span> CRM</div>
+    <div class="login-subtitle">Admin access required to edit</div>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <button class="login-btn" style="background:transparent;border:2px solid var(--border);color:var(--muted);margin-top:8px;" onclick="closeLoginModal()">Cancel</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- APP CONTENT (always visible) -->
+<div id="appContent">
 <div class="app">
   <header>
     <div class="logo">sticky<span>notes</span> CRM</div>
@@ -357,7 +479,9 @@
       <div class="search-box">
         <input type="text" id="searchInput" placeholder="Search contacts..." oninput="renderCards()">
       </div>
-      <button class="btn btn-primary" onclick="openModal()">+ Add Contact</button>
+      <button class="btn btn-primary" id="addContactBtn" onclick="openModal()" style="display:none;">+ Add Contact</button>
+      <button class="logout-btn" id="logoutBtn" onclick="doLogout()" style="display:none;">🔓 Logout</button>
+      <button class="btn btn-ghost" id="loginBtn" onclick="showLoginModal()">🔒 Admin Login</button>
     </div>
   </header>
 
@@ -589,19 +713,26 @@ function renderCards() {
     if (c.dob) tags.push(`<span class="tag tag-teal">DOB: ${c.dob}</span>`);
     if (c.height || c.weight) tags.push(`<span class="tag tag-pink">${[c.height, c.weight].filter(Boolean).join(' / ')}</span>`);
 
+    const actions = isLoggedIn()
+      ? `<button class="btn btn-ghost" onclick="editContact(${c.id})">✏️ Edit</button>
+         <button class="btn btn-danger" onclick="deleteContact(${c.id})">🗑 Delete</button>`
+      : `<button class="btn btn-ghost" onclick="showLoginModal()" style="color:var(--muted);font-size:11px;">🔒 Login to edit</button>`;
+
+    const phoneHtml = !c.phone ? '—'
+      : isLoggedIn()
+        ? `<a href="tel:${c.phone.replace(/\D/g,'')}" style="color:var(--green);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">📞 ${c.phone}</a>`
+        : `<span onclick="showLoginModal()" title="Login to view" style="filter:blur(4px);user-select:none;cursor:pointer;color:var(--green);letter-spacing:1px;">📞 ${c.phone}</span>`;
+
     return `
     <div class="card">
       <div class="card-accent accent-${c.color}"></div>
       <div class="card-body">
         <div class="card-name">${c.name || '<em style="color:#aaa;font-weight:400">Unknown</em>'}</div>
-        <div class="card-phone">${c.phone ? `<a href="tel:${c.phone.replace(/\D/g,'')}" style="color:var(--green);text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">📞 ${c.phone}</a>` : '—'}</div>
+        <div class="card-phone">${phoneHtml}</div>
         ${tags.length ? `<div class="card-meta">${tags.join('')}</div>` : ''}
         ${c.notes ? `<div class="card-notes">${c.notes}</div>` : ''}
       </div>
-      <div class="card-actions">
-        <button class="btn btn-ghost" onclick="editContact(${c.id})">✏️ Edit</button>
-        <button class="btn btn-danger" onclick="deleteContact(${c.id})">🗑 Delete</button>
-      </div>
+      <div class="card-actions">${actions}</div>
     </div>`;
   }).join('');
 }
@@ -699,7 +830,60 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-renderCards();
+// --- AUTH ---
+const VALID_USER = 'AdamEllis';
+const VALID_PASS = 'Vibrations1!';
+const SESSION_KEY = 'crm_auth';
+
+function isLoggedIn() {
+  return sessionStorage.getItem(SESSION_KEY) === '1';
+}
+
+function updateAuthUI() {
+  const loggedIn = isLoggedIn();
+  document.getElementById('addContactBtn').style.display = loggedIn ? 'inline-block' : 'none';
+  document.getElementById('logoutBtn').style.display = loggedIn ? 'inline-block' : 'none';
+  document.getElementById('loginBtn').style.display = loggedIn ? 'none' : 'inline-block';
+  renderCards();
+}
+
+function showLoginModal() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').textContent = '';
+  setTimeout(() => document.getElementById('loginUser').focus(), 100);
+}
+
+function closeLoginModal() {
+  document.getElementById('loginScreen').style.display = 'none';
+}
+
+function doLogin() {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  if (u === VALID_USER && p === VALID_PASS) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    closeLoginModal();
+    updateAuthUI();
+    showToast('Welcome, ' + u + ' ✓');
+  } else {
+    err.textContent = '⚠ Incorrect username or password.';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginPass').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem(SESSION_KEY);
+  updateAuthUI();
+  showToast('Logged out successfully');
+}
+
+// Init — always show the app, just update auth UI
+updateAuthUI();
 </script>
+</div><!-- end appContent -->
 </body>
 </html>
